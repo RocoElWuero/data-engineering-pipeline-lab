@@ -38,11 +38,19 @@ import org.apache.spark.sql.functions._
 import org.apache.hadoop.fs.{FileSystem, Path}
 import java.net.URI
 
-val mysqlUrl = "jdbc:mysql://127.0.0.1:3306/practica_data_engineering"
-val mysqlUser = "root"
-val mysqlPassword = "Root1234!"
+def getEnvOrFail(key: String): String =
+	sys.env.getOrElse(key, throw new RuntimeException(s"Missing env var: $key"))
 
-val outputRoot = "file:///C:/Users/RocoElWuero/practica_data_engineering/data_lake"
+val mysqlHost = sys.env.getOrElse("MYSQL_HOST", "127.0.0.1")
+val mysqlPort = sys.env.getOrElse("MYSQL_PORT", "3306")
+val mysqlDb   = sys.env.getOrElse("MYSQL_DATABASE", "data_engineering_pipeline_lab")
+
+val mysqlUser = getEnvOrFail("MYSQL_USER")
+val mysqlPassword = getEnvOrFail("MYSQL_PASSWORD")
+
+val mysqlUrl = s"jdbc:mysql://$mysqlHost:$mysqlPort/$mysqlDb"
+
+val outputRoot = sys.env.getOrElse("OUTPUT_ROOT", "file:///tmp/data_lake")
 val cleanParquetPath = s"$outputRoot/raw_sales_clean_parquet"
 val productKpiPath = s"$outputRoot/sales_kpi_by_product"
 val regionKpiPath = s"$outputRoot/sales_kpi_by_region"

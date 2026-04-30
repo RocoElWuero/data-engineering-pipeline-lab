@@ -67,7 +67,7 @@ net start MySQL96
 Se crea una carpeta:
 
 ```text
-C:\Users\RocoElWuero\practica_data_engineering\data_lake
+file:///tmp/data_lake
 ```
 
 Con:
