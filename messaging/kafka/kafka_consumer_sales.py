@@ -1,0 +1,136 @@
+from __future__ import annotations
+
+import json
+from datetime import datetime
+from decimal import Decimal
+from typing import Any
+
+import mysql.connector
+from kafka import KafkaConsumer
+from mysql.connector import MySQLConnection
+
+
+DB_CONFIG = {
+    "host": "127.0.0.1",
+    "port": 3306,
+    "user": "root",
+    "password": "Root1234!",
+    "database": "practica_data_engineering",
+}
+
+KAFKA_BOOTSTRAP_SERVERS = ["localhost:9092"]
+KAFKA_TOPIC = "sales_clean_events"
+KAFKA_GROUP_ID = "sales_clean_consumer_group"
+# KAFKA_GROUP_ID = "sales_clean_consumer_group_v2"
+
+
+def get_connection() -> MySQLConnection:
+    return mysql.connector.connect(**DB_CONFIG)
+
+
+def upsert_kafka_event(conn: MySQLConnection, message: Any) -> None:
+    payload = message.value
+
+    query = """
+        INSERT INTO kafka_sales_events
+        (
+            source_sale_id,
+            sale_date,
+            customer_name,
+            product_name,
+            region_id,
+            quantity,
+            unit_price,
+            total_amount,
+            topic_name,
+            partition_id,
+            offset_id,
+            kafka_event_ts
+        )
+        VALUES
+        (
+            %(source_sale_id)s,
+            %(sale_date)s,
+            %(customer_name)s,
+            %(product_name)s,
+            %(region_id)s,
+            %(quantity)s,
+            %(unit_price)s,
+            %(total_amount)s,
+            %(topic_name)s,
+            %(partition_id)s,
+            %(offset_id)s,
+            %(kafka_event_ts)s
+        )
+        ON DUPLICATE KEY UPDATE
+            customer_name = VALUES(customer_name),
+            product_name = VALUES(product_name),
+            region_id = VALUES(region_id),
+            quantity = VALUES(quantity),
+            unit_price = VALUES(unit_price),
+            total_amount = VALUES(total_amount),
+            topic_name = VALUES(topic_name),
+            partition_id = VALUES(partition_id),
+            offset_id = VALUES(offset_id),
+            kafka_event_ts = VALUES(kafka_event_ts)
+    """
+
+    kafka_event_ts = payload.get("published_at")
+    if kafka_event_ts:
+        kafka_event_ts = datetime.fromisoformat(kafka_event_ts)
+    else:
+        kafka_event_ts = datetime.utcnow()
+
+    db_payload = {
+        "source_sale_id": int(payload["source_sale_id"]),
+        "sale_date": payload["sale_date"],
+        "customer_name": payload["customer_name"],
+        "product_name": payload["product_name"],
+        "region_id": int(payload["region_id"]),
+        "quantity": int(payload["quantity"]),
+        "unit_price": Decimal(str(payload["unit_price"])),
+        "total_amount": Decimal(str(payload["total_amount"])),
+        "topic_name": message.topic,
+        "partition_id": int(message.partition),
+        "offset_id": int(message.offset),
+        "kafka_event_ts": kafka_event_ts,
+    }
+
+    with conn.cursor() as cursor:
+        cursor.execute(query, db_payload)
+
+
+def main() -> None:
+    consumer = KafkaConsumer(
+        KAFKA_TOPIC,
+        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+        group_id=KAFKA_GROUP_ID,
+        auto_offset_reset="earliest", # ¿Desde dónde empiezo a leer los mensajes? earliest = Desde el offset 0; latest = El último
+        enable_auto_commit=True,
+        consumer_timeout_ms=5000,
+        value_deserializer=lambda m: json.loads(m.decode("utf-8")),
+        key_deserializer=lambda k: k.decode("utf-8") if k else None,
+    )
+
+    conn = get_connection()
+    consumed = 0
+
+    try:
+        for message in consumer:
+            upsert_kafka_event(conn, message)
+            conn.commit()
+            consumed += 1
+            print(
+                f"Consumed sale_id={message.value['source_sale_id']} "
+                f"from topic={message.topic} partition={message.partition} offset={message.offset}"
+            )
+
+        print(f"\nConsumer finished successfully. Messages consumed: {consumed}")
+
+    finally:
+        consumer.close()
+        conn.close()
+
+
+if __name__ == "__main__":
+    main()

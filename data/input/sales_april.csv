@@ -1,0 +1,13 @@
+sale_date_raw,customer_name_raw,product_raw,region_raw,quantity_raw,unit_price_raw,source_file
+2026-04-10,Juan Perez,Laptop,NORTE,2,18500.50,sales_april.csv
+2026-04-10,Maria Lopez,Mouse,CENTRO,5,250.00,sales_april.csv
+2026-04-11,Carlos Ruiz,Monitor,SUR,1,4200.99,sales_april.csv
+2026-04-11,Ana Torres,Teclado,OCCIDENTE,3,799.90,sales_april.csv
+2026-04-11,Cliente Sin Region,Docking Station,ESTE,1,2100.00,sales_april.csv
+fecha-invalida,Pedro Campos,Laptop,NORTE,1,18000.00,sales_april.csv
+2026-04-12,,Audifonos,SUR,2,1500.00,sales_april.csv
+2026-04-12,Luisa Mendez,,CENTRO,4,300.00,sales_april.csv
+2026-04-12,Oscar Diaz,Webcam,CENTRO,-1,950.00,sales_april.csv
+2026-04-12,Patricia Leon,Silla,NORTE,2,-500.00,sales_april.csv
+2026-04-12,Miguel Soto,SSD,SUR,abc,2200.00,sales_april.csv
+2026-04-12,Laura Gil,Memoria RAM,OCCIDENTE,2,precio,sales_april.csv
