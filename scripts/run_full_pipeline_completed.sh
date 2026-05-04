@@ -23,8 +23,8 @@ KAFKA_CONSUMER_WIN="${PROJECT_DIR_WIN}\\messaging\\kafka\\kafka_consumer_sales.p
 
 RUN_CSV_LOADER="true"
 ETL_PIPELINE="true"
-RUN_KAFKA_PRODUCER="false"
-RUN_KAFKA_CONSUMER="false"
+RUN_KAFKA_PRODUCER="true"
+RUN_KAFKA_CONSUMER="true"
 
 LOG_DIR_WSL="${PROJECT_DIR_WSL}/logs"
 mkdir -p "${LOG_DIR_WSL}"

@@ -19,8 +19,14 @@ load_dotenv(BASE_DIR / ".env")
 
 def validate_env():
 	required_vars = [
-		"MYSQL_HOST", "MYSQL_PORT", "MYSQL_USER", "MYSQL_PASSWORD", "MYSQL_DATABASE",
-		"SQLSERVER_HOST", "SQLSERVER_DATABASE", "SQLSERVER_USER", "SQLSERVER_PASSWORD"
+		"MYSQL_HOST",
+		"MYSQL_PORT",
+		"MYSQL_USER",
+		"MYSQL_PASSWORD",
+		"MYSQL_DATABASE",
+		"KAFKA_BOOTSTRAP_SERVERS",
+		"KAFKA_TOPIC",
+		"KAFKA_GROUP_ID",
 	]
 
 	missing = [var for var in required_vars if not os.getenv(var)]
@@ -38,10 +44,13 @@ DB_CONFIG = {
 	"database": os.getenv("MYSQL_DATABASE"),
 }
 
-KAFKA_BOOTSTRAP_SERVERS = ["localhost:9092"]
-KAFKA_TOPIC = "sales_clean_events"
-KAFKA_GROUP_ID = "sales_clean_consumer_group"
-# KAFKA_GROUP_ID = "sales_clean_consumer_group_v2"
+KAFKA_BOOTSTRAP_SERVERS = os.getenv(
+	"KAFKA_BOOTSTRAP_SERVERS",
+	"127.0.0.1:9092"
+).split(",")
+
+KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "sales_clean_events")
+KAFKA_GROUP_ID = os.getenv("KAFKA_GROUP_ID", "sales_clean_consumer_group")
 
 
 def get_connection() -> MySQLConnection:
@@ -119,8 +128,17 @@ def upsert_kafka_event(conn: MySQLConnection, message: Any) -> None:
 	with conn.cursor() as cursor:
 		cursor.execute(query, db_payload)
 
+def safe_json_deserializer(message: bytes):
+	try:
+		return json.loads(message.decode("utf-8"))
+	except json.JSONDecodeError:
+		return None
 
 def main() -> None:
+	print("Kafka bootstrap servers:", KAFKA_BOOTSTRAP_SERVERS)
+	print("Kafka topic:", KAFKA_TOPIC)
+	print("Kafka group id:", KAFKA_GROUP_ID)
+
 	consumer = KafkaConsumer(
 		KAFKA_TOPIC,
 		bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
@@ -128,7 +146,8 @@ def main() -> None:
 		auto_offset_reset="earliest", # ¿Desde dónde empiezo a leer los mensajes? earliest = Desde el offset 0; latest = El último
 		enable_auto_commit=True,
 		consumer_timeout_ms=5000,
-		value_deserializer=lambda m: json.loads(m.decode("utf-8")),
+		# value_deserializer=lambda m: json.loads(m.decode("utf-8")),
+		value_deserializer=safe_json_deserializer,
 		key_deserializer=lambda k: k.decode("utf-8") if k else None,
 	)
 
@@ -137,6 +156,9 @@ def main() -> None:
 
 	try:
 		for message in consumer:
+			if message.value is None:
+				print(f"Skipping non-JSON message at offset={message.offset}")
+				continue
 			upsert_kafka_event(conn, message)
 			conn.commit()
 			consumed += 1

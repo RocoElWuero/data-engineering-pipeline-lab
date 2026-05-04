@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime
-#from datetime import date, datetime, UTC
+from datetime import date, datetime, UTC
 from decimal import Decimal
 from typing import Any
 
@@ -20,8 +19,13 @@ load_dotenv(BASE_DIR / ".env")
 
 def validate_env():
 	required_vars = [
-		"MYSQL_HOST", "MYSQL_PORT", "MYSQL_USER", "MYSQL_PASSWORD", "MYSQL_DATABASE",
-		"SQLSERVER_HOST", "SQLSERVER_DATABASE", "SQLSERVER_USER", "SQLSERVER_PASSWORD"
+		"MYSQL_HOST",
+		"MYSQL_PORT",
+		"MYSQL_USER",
+		"MYSQL_PASSWORD",
+		"MYSQL_DATABASE",
+		"KAFKA_BOOTSTRAP_SERVERS",
+		"KAFKA_TOPIC",
 	]
 
 	missing = [var for var in required_vars if not os.getenv(var)]
@@ -39,8 +43,12 @@ DB_CONFIG = {
 	"database": os.getenv("MYSQL_DATABASE"),
 }
 
-KAFKA_BOOTSTRAP_SERVERS = ["localhost:9092"]
-KAFKA_TOPIC = "sales_clean_events"
+KAFKA_BOOTSTRAP_SERVERS = os.getenv(
+	"KAFKA_BOOTSTRAP_SERVERS",
+	"localhost:9092"
+).split(",")
+
+KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "sales_clean_events")
 
 
 def get_connection() -> MySQLConnection:
@@ -83,6 +91,8 @@ def main() -> None:
 	rows = fetch_raw_sales_clean(conn)
 	conn.close()
 
+	print("Kafka bootstrap servers:", KAFKA_BOOTSTRAP_SERVERS)
+
 	producer = KafkaProducer(
 		bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
 		value_serializer=json_serializer,
@@ -103,8 +113,8 @@ def main() -> None:
 			"total_amount": row[7],
 			"ingestion_ts": row[8],
 			"event_type": "SALE_CLEAN_CREATED",
-			"published_at": datetime.utcnow(), # DEPRECATED
-			#"published_at": datetime.now(UTC),
+			# "published_at": datetime.utcnow(), # DEPRECATED
+			"published_at": datetime.now(UTC),
 		}
 
 		future = producer.send(
